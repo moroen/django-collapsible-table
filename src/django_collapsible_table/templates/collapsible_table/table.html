@@ -1,0 +1,27 @@
+<table class="{{ table_css_class }}">
+    <thead>
+        <tr>
+            {% for field in fields %}<th class="{{ field.header_css_class }}">{{ field.name }}</th>{% endfor %}
+            <th class="{{ expand_header_css_class }}"></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+            <tr>
+                {% for item in row.items %}<td class="{{ item.style }}">{{ item.value }}</td>{% endfor %}
+                {% if row.child_table is not None %}
+                    <td>
+                        <div style="cursor: pointer"
+                             _="on click toggle the *display of #detail_{{ row.items.0.value }} then if *display of #detail_{{ row.items.0.value }} then set my innerHTML to 'expand_more' else set my innerHTML to 'expand_less'"
+                             class="material-icons">expand_more</div>
+                    </td>
+                {% endif %}
+            </tr>
+            {% if row.child_table is not None %}
+                <tr style="display:none" id="detail_{{ row.items.0.value }}">
+                    <td colspan="{{ child_col_span }}">{{ row.child_table }}</td>
+                </tr>
+            {% endif %}
+        {% endfor %}
+    </tbody>
+</table>
