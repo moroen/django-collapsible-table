@@ -1,1 +1,6 @@
-from .core import CollapsibleTable, QuerySetNotDefined
+from .core import (
+    CollapsibleTable,
+    QuerySetNotDefined,
+    CollapsibleTableMixin,
+    CollapsibleTableView,
+)

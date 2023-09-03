@@ -3,13 +3,10 @@ from django.template.loader import render_to_string
 from logging import getLogger
 
 from django.db.models.query import QuerySet
+from django.views.generic import TemplateView
+from django.http import HttpRequest, HttpResponse
 
 log = getLogger(__name__)
-
-
-class CollapsibleTableViewMixin:
-    def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
-        pass
 
 
 class QuerySetNotDefined(Exception):
@@ -91,9 +88,10 @@ class CollapsibleTable:
             log.debug(f"Rendering {row}")
             row.items = []
             for field in fNames:
-                render_func = getattr(row, f"render_{field}", None)
-                if render_func is not None:
-                    item = render_func()
+                if hasattr(self, f"render_{field}"):
+                    item = getattr(self, f"render_{field}")(row)
+                elif hasattr(row, f"render_{field}"):
+                    item = getattr(row, f"render_{field}")()
                 else:
                     item = getattr(row, field, None)
 
@@ -115,7 +113,6 @@ class CollapsibleTable:
 
     def render(self):
         self.get_fields()
-        self.render_header()
 
         return render_to_string(
             "collapsible_table/table.html",
@@ -124,6 +121,7 @@ class CollapsibleTable:
                 "expand_header_css_class": self.expand_header_css_class,
                 "fields": self.fields,
                 "rows": self.render_rows(),
+                "child_col_span": len(self.field_names) + 1,
             },
         )
 
@@ -133,3 +131,52 @@ class CollapsibleTable:
 
     def get_child_queryset(self, record) -> QuerySet[Any]:
         return None
+
+
+class CollapsibleTableMixin:
+    template_name = None
+    template_hx = "collapsible_table/hx_table.html"
+
+    table_class = None
+    filterset_class = None
+    model = None
+    qs: QuerySet = None
+    sort = None
+
+    _table = None
+
+    def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+        self.sort = (
+            self.sort if not "sort" in request.GET else request.GET["sort"].lower()
+        )
+
+        self.qs = (
+            self.get_queryset().order_by(self.sort)
+            if self.sort is not None
+            else self.get_queryset()
+        )
+        dev = self.filterset_class(request.GET, self.qs)
+        self._table = self.table_class(dev.qs)
+
+        if request.htmx:
+            self.template_name = self.template_hx
+
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
+        context = super().get_context_data(**kwargs)
+        context.update({"table": self._table.render()})
+        return context
+
+    def get_queryset(self) -> QuerySet[Any]:
+        _model = getattr(self, "model", None)
+        if _model is not None:
+            return _model.objects.all()
+        else:
+            raise QuerySetNotDefined(
+                "Tried to create Collapsible table without queryset. Either define model or override 'get_queryset'"
+            )
+
+
+class CollapsibleTableView(CollapsibleTableMixin, TemplateView):
+    pass
