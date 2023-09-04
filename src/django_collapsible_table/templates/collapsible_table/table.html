@@ -4,12 +4,15 @@
             <tr>
                 {% for field in fields %}
                     <th class="{{ field.header_css_class }}">
-                        <a href=""
-                           hx-target="#collapsible_table"
-                           hx-get="?sort={{ field.name }}">
+                        {% if field.sortable %}
+                            <a href=""
+                               hx-target="#collapsible_table"
+                               hx-get="?sort={{ field.name }}">{{ field.name }}</a>
+                            {% if field.name|lower == sorting_field %}<i class="bi bi-sort-alpha-down"></i>{% endif %}
+                        {% else %}
                             {{ field.name }}
-                        </th>
-                    </a>
+                        {% endif %}
+                    </th>
                 {% endfor %}
                 <th class="{{ expand_header_css_class }}"></th>
             </tr>
@@ -21,8 +24,8 @@
                     {% if row.child_table is not None %}
                         <td>
                             <div style="cursor: pointer"
-                                 _="on click toggle the *display of #detail_{{ row.items.0.value }} then if *display of #detail_{{ row.items.0.value }} then set my innerHTML to 'expand_more' else set my innerHTML to 'expand_less'"
-                                 class="material-icons">expand_more</div>
+                                 _="on click toggle the *display of #detail_{{ row.items.0.value }} then toggle between .bi-arrows-expand and .bi-arrows-collapse "
+                                 class="bi-arrows-expand"></div>
                         </td>
                     {% endif %}
                 </tr>

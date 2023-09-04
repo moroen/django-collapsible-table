@@ -27,6 +27,7 @@ class CollapsibleTable:
 
     table_css_class = "table"
     expand_header_css_class = "col-1"
+    sort = None
 
     @property
     def field_names(self):
@@ -35,10 +36,9 @@ class CollapsibleTable:
             fNames.append(field["name"].lower())
         return fNames
 
-    def __init__(self, data=None, fields=None) -> None:
-        print("data:", data)
-
+    def __init__(self, data=None, fields=None, sort=None) -> None:
         self.qs = data if data is not None else self.get_queryset()
+        self.qs = self.sort_queryset(sort)
 
         if not hasattr(self, "child_table_class"):
             self.child_table_class = self.__class__
@@ -50,8 +50,21 @@ class CollapsibleTable:
         self.fields = []
         for field in list(self.qs.values()[0]):
             self.fields.append(
-                {"name": field.capitalize(), "header_css_class": "col-3"}
+                {
+                    "name": field.capitalize(),
+                    "header_css_class": "col-3",
+                    "sortable": True,
+                }
             )
+
+    def sort_queryset(self, key) -> QuerySet[Any]:
+        self.sort = key
+
+        sort_func = getattr(self, f"sort_{key}", None)
+        if sort_func is not None:
+            return sort_func(self.qs)
+        else:
+            return self.qs.order_by(key)
 
     def get_fields(self):
         if not hasattr(self, "fields"):
@@ -65,10 +78,18 @@ class CollapsibleTable:
                     if isinstance(field, dict):
                         if not "header_css_class" in field:
                             field.update({"header_css_class": "col-3"})
+
+                        if not "sortable" in field:
+                            field.update({"sortable": True})
+
                         temp.append(field)
                     else:
                         temp.append(
-                            {"name": field.capitalize(), "header_css_class": "col-3"}
+                            {
+                                "name": field.capitalize(),
+                                "header_css_class": "col-3",
+                                "sortable": True,
+                            }
                         )
 
                 self.fields = temp
@@ -122,6 +143,7 @@ class CollapsibleTable:
                 "fields": self.fields,
                 "rows": self.render_rows(),
                 "child_col_span": len(self.field_names) + 1,
+                "sorting_field": self.sort,
             },
         )
 
@@ -146,17 +168,20 @@ class CollapsibleTableMixin:
     _table = None
 
     def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
-        self.sort = (
-            self.sort if not "sort" in request.GET else request.GET["sort"].lower()
-        )
+        request.session.set_expiry(0)
 
-        self.qs = (
-            self.get_queryset().order_by(self.sort)
-            if self.sort is not None
-            else self.get_queryset()
-        )
+        if not "sort" in request.session:
+            request.session["sort"] = None
+
+        if "sort" in request.GET:
+            request.session["sort"] = request.GET["sort"].lower()
+
+        self.sort = request.session["sort"]
+
+        self.qs = self.get_queryset()
+
         dev = self.filterset_class(request.GET, self.qs)
-        self._table = self.table_class(dev.qs)
+        self._table = self.table_class(dev.qs, sort=self.sort)
 
         if request.htmx:
             self.template_name = self.template_hx
@@ -165,7 +190,7 @@ class CollapsibleTableMixin:
 
     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
         context = super().get_context_data(**kwargs)
-        context.update({"table": self._table.render()})
+        context.update({"table": self._table.render(), "sorting_field": "test"})
         return context
 
     def get_queryset(self) -> QuerySet[Any]:
@@ -179,4 +204,5 @@ class CollapsibleTableMixin:
 
 
 class CollapsibleTableView(CollapsibleTableMixin, TemplateView):
-    pass
+    def __init__(self) -> None:
+        super().__init__()
