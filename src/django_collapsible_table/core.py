@@ -28,6 +28,7 @@ class CollapsibleTable:
     table_css_class = "table"
     expand_header_css_class = "col-1"
     sort = None
+    order = None
 
     @property
     def field_names(self):
@@ -36,9 +37,12 @@ class CollapsibleTable:
             fNames.append(field["name"].lower())
         return fNames
 
-    def __init__(self, data=None, fields=None, sort=None) -> None:
+    def __init__(self, data=None, fields=None, sort=None, order=None) -> None:
         self.qs = data if data is not None else self.get_queryset()
-        self.qs = self.sort_queryset(sort)
+        self.qs = self.sort_queryset(sort, order)
+
+        self.sort = sort
+        self.order = order
 
         if not hasattr(self, "child_table_class"):
             self.child_table_class = self.__class__
@@ -57,13 +61,16 @@ class CollapsibleTable:
                 }
             )
 
-    def sort_queryset(self, key) -> QuerySet[Any]:
+    def sort_queryset(self, key, order=None) -> QuerySet[Any]:
         self.sort = key
 
         sort_func = getattr(self, f"sort_{key}", None)
         if sort_func is not None:
-            return sort_func(self.qs)
+            return sort_func(self.qs, order)
+        elif key == None:
+            return self.qs
         else:
+            key = f"-{key}" if order == "desc" else key
             return self.qs.order_by(key)
 
     def get_fields(self):
@@ -94,10 +101,10 @@ class CollapsibleTable:
 
                 self.fields = temp
 
-    def render_header(self):
-        return render_to_string(
-            "collapsible_table/header.html", context={"fields": self.fields}
-        )
+    # def render_header(self):
+    #    return render_to_string(
+    #        "collapsible_table/header.html", context={"fields": self.fields}
+    #    )
 
     def render_rows(self):
         rows = []
@@ -144,6 +151,7 @@ class CollapsibleTable:
                 "rows": self.render_rows(),
                 "child_col_span": len(self.field_names) + 1,
                 "sorting_field": self.sort,
+                "sorting_order": self.order,
             },
         )
 
@@ -164,6 +172,7 @@ class CollapsibleTableMixin:
     model = None
     qs: QuerySet = None
     sort = None
+    order = None
 
     _table = None
 
@@ -178,10 +187,13 @@ class CollapsibleTableMixin:
 
         self.sort = request.session["sort"]
 
+        if "order" in request.GET:
+            self.order = request.GET["order"]
+
         self.qs = self.get_queryset()
 
         dev = self.filterset_class(request.GET, self.qs)
-        self._table = self.table_class(dev.qs, sort=self.sort)
+        self._table = self.table_class(dev.qs, sort=self.sort, order=self.order)
 
         if request.htmx:
             self.template_name = self.template_hx
@@ -190,7 +202,7 @@ class CollapsibleTableMixin:
 
     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
         context = super().get_context_data(**kwargs)
-        context.update({"table": self._table.render(), "sorting_field": "test"})
+        context.update({"table": self._table.render()})
         return context
 
     def get_queryset(self) -> QuerySet[Any]:

@@ -5,10 +5,21 @@
                 {% for field in fields %}
                     <th class="{{ field.header_css_class }}">
                         {% if field.sortable %}
-                            <a href=""
-                               hx-target="#collapsible_table"
-                               hx-get="?sort={{ field.name }}">{{ field.name }}</a>
-                            {% if field.name|lower == sorting_field %}<i class="bi bi-sort-alpha-down"></i>{% endif %}
+                            {% if field.name|lower == sorting_field %}
+                                {% if sorting_order == "desc" %}
+                                    <a href=""
+                                       hx-target="#collapsible_table"
+                                       hx-get="?sort={{ field.name }}&order=asc">{{ field.name }}<i class="bi bi-sort-alpha-down-alt"></i></a>
+                                {% else %}
+                                    <a href=""
+                                       hx-target="#collapsible_table"
+                                       hx-get="?sort={{ field.name }}&order=desc">{{ field.name }}<i class="bi bi-sort-alpha-down"></i></a>
+                                {% endif %}
+                            {% else %}
+                                <a href=""
+                                   hx-target="#collapsible_table"
+                                   hx-get="?sort={{ field.name }}">{{ field.name }}</a>
+                            {% endif %}
                         {% else %}
                             {{ field.name }}
                         {% endif %}
